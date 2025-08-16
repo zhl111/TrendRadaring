@@ -3313,7 +3313,7 @@ class NewsAnalyzer:
         current_platform_ids = [platform["id"] for platform in CONFIG["PLATFORMS"]]
 
         new_titles = detect_latest_new_titles(current_platform_ids)
-        time_info = Path(save_titles_to_file(results, id_to_name, failed_ids)).stem
+        time_info = format_time_filename()  # 直接获取时间信息，不重复保存文件
         word_groups, filter_words = load_frequency_words()
 
         # current模式下，实时推送需要使用完整的历史数据来保证统计信息的完整性
