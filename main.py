@@ -204,6 +204,47 @@ def calculate_title_similarity(title1: str, title2: str) -> float:
     return lcs_len / max_len
 
 
+def apply_global_deduplication(results: Dict, id_to_name: Dict) -> Dict:
+    """跨来源全局去重"""
+    if not results:
+        return results
+    
+    # 收集所有新闻，记录来源信息
+    all_news = {}
+    source_mapping = {}  # 记录每个标题来自哪个来源
+    
+    for source_id, titles_data in results.items():
+        for title, title_data in titles_data.items():
+            # 为标题添加来源信息
+            enhanced_data = title_data.copy()
+            enhanced_data["source_id"] = source_id
+            enhanced_data["source_name"] = id_to_name.get(source_id, source_id)
+            
+            all_news[title] = enhanced_data
+            source_mapping[title] = source_id
+    
+    # 执行全局去重
+    deduplicated_news = deduplicate_similar_titles(all_news)
+    
+    # 重新按来源分组
+    new_results = {}
+    removed_count = len(all_news) - len(deduplicated_news)
+    
+    if removed_count > 0:
+        print(f"🔄 全局去重: 跨来源去除了 {removed_count} 条相似新闻")
+    
+    for title, title_data in deduplicated_news.items():
+        source_id = title_data.pop("source_id", None)
+        title_data.pop("source_name", None)  # 移除临时添加的字段
+        
+        if source_id:
+            if source_id not in new_results:
+                new_results[source_id] = {}
+            new_results[source_id][title] = title_data
+    
+    return new_results
+
+
 def deduplicate_similar_titles(titles_data: Dict, similarity_threshold: float = None) -> Dict:
     """去除相似的标题，保留排名最高的"""
     if not titles_data:
@@ -960,6 +1001,10 @@ def count_word_frequency(
     mode: str = "daily",
 ) -> Tuple[List[Dict], int]:
     """统计词频，支持必须词、频率词、过滤词，并标记新增标题"""
+
+    # 全局去重：跨来源去除相似新闻
+    if CONFIG.get("DEDUP_CONFIG", {}).get("ENABLE_SMART_DEDUP", True):
+        results = apply_global_deduplication(results, id_to_name)
 
     # 如果没有配置词组，创建一个包含所有新闻的虚拟词组
     if not word_groups:
